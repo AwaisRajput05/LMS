@@ -19,10 +19,10 @@ export default function Hero() {
         {/* Heading */}
         <h1 className="text-4xl md:text-5xl font-bold text-gray-800 leading-tight">
           Empower your future with the <br /> courses designed to
-          <span className="text-indigo-600"> fit your choice.</span>
+          <span  data-aos="fade-down" className="text-indigo-600"> fit your choice.</span>
         </h1>
 
-        <div className="mt-0 ml-[670px]">
+        <div  data-aos="fade-down" className="mt-0 ml-[670px]">
           <Image
             src="/images/sktech.svg"
             alt="Sketch"
@@ -39,7 +39,7 @@ export default function Hero() {
         </p>
 
         {/* Search Bar */}
-        <div className="mt-10 max-w-md mx-auto">
+        <div  data-aos="fade-up" className="mt-10 max-w-md mx-auto">
           <div className="relative">
             <input
               type="text"

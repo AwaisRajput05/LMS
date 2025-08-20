@@ -104,3 +104,4 @@ export function getStars(rating) {
 
   return stars;
 }
+

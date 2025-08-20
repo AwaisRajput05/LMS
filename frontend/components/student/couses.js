@@ -26,6 +26,7 @@ export default function TopCourses() {
           {courses.slice(0, 4).map((course) => (
             <Link
               key={course.title}
+              
               href={`/courseList/${slugify(course.title)}`} // Detail page link
               className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition block"
             >
@@ -78,12 +79,12 @@ export default function TopCourses() {
         </div>
 
         {/* Show All Button */}
-        <div className="text-center mt-10">
+        <div data-aos="fade-up" className="text-center mt-10">
           <Link
             href="/courseList"
             className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-full text-sm font-semibold hover:bg-indigo-700 transition"
           >
-            Show all courses
+              Show all courses
           </Link>
         </div>
       </div>

@@ -31,7 +31,7 @@ export default function LearnAnywhere() {
             href="/about"
             className="flex items-center text-indigo-600 font-semibold text-lg hover:underline"
           >
-            Learn more <span className="ml-1">&rarr;</span>
+           <span data-aos="fade-right">Learn more</span>  <span className="ml-1">&rarr;</span>
           </Link>
         </div>
       </div>
