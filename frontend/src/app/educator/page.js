@@ -516,7 +516,13 @@ const Dashboard = () => {
           {/* Course Description */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">Course Description</label>
-            <div ref={editorRef}></div>
+            <textarea
+              value={newCourse.description}
+              onChange={(e) => setNewCourse({...newCourse, description: e.target.value})}
+              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Write course description here..."
+              rows={4}
+            />
           </div>
 
           {/* Price and Discount Row */}
