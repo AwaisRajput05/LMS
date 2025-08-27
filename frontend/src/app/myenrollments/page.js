@@ -2,17 +2,36 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 
 export default function MyEnrollments() {
-  // Static course info
-  const courseList = [
-    { id: 1, title: "Introduction to JavaScript", image: "/images/course_1.png" },
-    { id: 2, title: "Advanced Python Programming", image: "/images/course_2.png" },
-    { id: 3, title: "Cybersecurity Basics", image: "/images/course_3.png" },
-    { id: 4, title: "Web Development Bootcamp", image: "/images/course_4.png" },
-  ];
-
+  const [courseList, setCourseList] = useState([]);
   const [progressData, setProgressData] = useState({});
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      const token = await getToken();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/enrolled-courses`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      });
+      const data = await res.json();
+      // Remove duplicate courses by _id
+      const uniqueCourses = [];
+      const seen = new Set();
+      (data.enrolledCourses || []).forEach(course => {
+        if (!seen.has(course._id)) {
+          uniqueCourses.push(course);
+          seen.add(course._id);
+        }
+      });
+      setCourseList(uniqueCourses);
+    };
+    fetchCourses();
+  }, []);
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem("courseProgress") || "{}");
@@ -45,23 +64,24 @@ export default function MyEnrollments() {
           </thead>
           <tbody>
             {courseList.map((course) => {
-              const stored = progressData[course.id] || { completed: [], total: 0, duration: "—" };
+              // Use course._id as key and for routing
+              const stored = progressData[course._id] || { completed: [], total: 0, duration: "—" };
               const progress = calculateProgress(stored.completed, stored.total);
               const status = getStatus(stored.completed, stored.total);
 
               return (
                 <tr
-                  key={course.id}
+                  key={course._id}
                   className="border-t border-gray-100 hover:bg-gray-50 transition-colors"
                 >
                   {/* Course Column */}
                   <td className="p-4">
                     <div className="flex items-center space-x-4">
                       <div className="relative w-20 h-12 flex-shrink-0">
-                        <Image src={course.image} alt={course.title} fill className="object-cover rounded" />
+                        <Image src={course.courseThumbnail} alt={course.courseTitle} fill className="object-cover rounded" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-gray-800">{course.title}</p>
+                        <p className="font-medium text-gray-800">{course.courseTitle}</p>
                         {/* Progress Bar */}
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                           <div
@@ -91,7 +111,7 @@ export default function MyEnrollments() {
 
                   {/* Status */}
                   <td className="p-4">
-                    <Link href={`/myenrollments/${course.id}`}>
+                    <Link href={`/myenrollments/${course._id}`}>
                       <span
                         className={`inline-block w-24 px-3 py-2 rounded text-white text-sm font-medium text-center cursor-pointer ${
                           status === "Completed"

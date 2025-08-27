@@ -4,6 +4,7 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import Navbar from "../../components/student/nav";
 import Footer from "../../components/student/footer";
+import { ToastContainer } from "react-toastify";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
           <Navbar />
           <hr />
           {children}
+           <ToastContainer position="top-right" autoClose={3000} />
           <Footer />
         </body>
       </html>

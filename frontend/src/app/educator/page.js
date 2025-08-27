@@ -1,6 +1,7 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
 import { Home, Plus, BookOpen, Users, User, BookOpenCheck, DollarSign, X, Play, Clock, Link, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuth } from "@clerk/nextjs";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -22,8 +23,13 @@ const Dashboard = () => {
     isFree: false
   });
   const [chapterVisibility, setChapterVisibility] = useState({}); // Add this state in Dashboard
+  const [imageFile, setImageFile] = useState(null);
   const editorRef = useRef(null);
   const quillRef = useRef(null);
+  const { getToken } = useAuth();
+  const [students, setStudents] = useState([]);
+  const [dashboardStats, setDashboardStats] = useState([]);
+  const [latestEnrollments, setLatestEnrollments] = useState([]);
 
   // Mock courses data - later replace with API calls
   const myCourses = [
@@ -108,13 +114,15 @@ const Dashboard = () => {
   const handleAddChapter = () => {
     const chapterName = prompt('Enter chapter name:');
     if (chapterName && chapterName.trim()) {
+      const chapterOrder = chapters.length + 1;
       const newChapter = {
-        id: Date.now(),
-        name: chapterName.trim(),
-        lectures: []
+        chapterId: Date.now().toString(),
+        chapterOrder,
+        chapterTitle: chapterName.trim(),
+        chapterContent: []
       };
       setChapters(prevChapters => [...prevChapters, newChapter]);
-      setChapterVisibility(prev => ({ ...prev, [newChapter.id]: true })); // Show lectures by default
+      setChapterVisibility(prev => ({ ...prev, [newChapter.chapterId]: true }));
     }
   };
 
@@ -128,24 +136,24 @@ const Dashboard = () => {
       alert('Please enter lecture title');
       return;
     }
-
+    const lectureOrder = chapters[currentChapterIndex].chapterContent.length + 1;
     const lecture = {
-      id: Date.now(),
-      title: newLecture.title,
-      duration: newLecture.duration,
-      url: newLecture.url,
-      isFree: newLecture.isFree
+      lectureId: Date.now().toString(),
+      lectureTitle: newLecture.title,
+      lectureDuration: Number(newLecture.duration),
+      lectureUrl: newLecture.url,
+      isPreviewFree: newLecture.isFree,
+      lectureOrder
     };
 
-    setChapters(prevChapters => 
-      prevChapters.map((chapter, index) => 
-        index === currentChapterIndex 
-          ? { ...chapter, lectures: [...chapter.lectures, lecture] }
+    setChapters(prevChapters =>
+      prevChapters.map((chapter, index) =>
+        index === currentChapterIndex
+          ? { ...chapter, chapterContent: [...chapter.chapterContent, lecture] }
           : chapter
       )
     );
 
-    // Reset form and close dialog
     setNewLecture({
       title: '',
       duration: '',
@@ -167,146 +175,107 @@ const Dashboard = () => {
     });
   };
 
-  const handleAddCourse = () => {
+  // Add course API integration
+  const handleAddCourse = async () => {
     if (!newCourse.title.trim()) {
       alert('Please enter course title');
       return;
     }
+    const token = await getToken();
 
-    const course = {
-      id: Date.now(),
-      title: newCourse.title,
-      thumbnail: newCourse.thumbnail || 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=200&fit=crop',
-      earnings: 0,
-      students: 0,
-      publishedDate: new Date().toLocaleDateString('en-US', {
-        month: '2-digit',
-        day: '2-digit',
-        year: 'numeric'
-      }),
-      chapters: [...chapters]
-    };
-    
-    setCourses(prevCourses => [...prevCourses, course]);
-    
-    // Reset form
-    setNewCourse({
-      title: '',
-      description: '',
-      price: '',
-      discount: '',
-      thumbnail: ''
+    const formData = new FormData();
+    formData.append("courseData", JSON.stringify({
+      courseTitle: newCourse.title,
+      courseDescription: newCourse.description,
+      coursePrice: newCourse.price,
+      discount: newCourse.discount,
+      courseThumbnail: newCourse.thumbnail,
+      courseContent: chapters
+    }));
+    if (imageFile) {
+      formData.append("image", imageFile);
+    }
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/educator/add-course`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      credentials: "include",
+      body: formData
     });
-    setChapters([]);
-    
-    alert('Course added successfully!');
-    setActiveTab('my-courses');
+    const data = await res.json();
+    if (data.success) {
+      alert('Course added successfully!');
+      setActiveTab('my-courses');
+      setNewCourse({
+        title: '',
+        description: '',
+        price: '',
+        discount: '',
+        thumbnail: ''
+      });
+      setImageFile(null);
+      setChapters([]);
+    } else {
+      alert(data.message || "Failed to add course");
+    }
   };
 
-  // Mock data - later replace with API calls
-  const dashboardStats = [
-    {
-      id: 1,
-      title: 'Total Enrollments',
-      value: '14',
-      icon: User,
-      bgColor: 'bg-blue-50',
-      iconColor: 'text-blue-600',
-      borderColor: 'border-blue-200'
-    },
-    {
-      id: 2,
-      title: 'Total Courses',
-      value: '8',
-      icon: BookOpenCheck,
-      bgColor: 'bg-purple-50',
-      iconColor: 'text-purple-600',
-      borderColor: 'border-purple-200'
-    },
-    {
-      id: 3,
-      title: 'Total Earnings',
-      value: '$245',
-      icon: DollarSign,
-      bgColor: 'bg-green-50',
-      iconColor: 'text-green-600',
-      borderColor: 'border-green-200'
-    }
-  ];
-
-  // Mock enrollment data - later replace with API calls
-  const latestEnrollments = [
-    {
-      id: 1,
-      studentName: 'Richard Sanford',
-      courseTitle: 'Build Text To Image SaaS App in React JS',
-      date: '22 Aug, 2024',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 2,
-      studentName: 'Enrique Murphy',
-      courseTitle: 'Build AI BG Removal SaaS App in React JS',
-      date: '22 Aug, 2024',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 3,
-      studentName: 'Alison Powell',
-      courseTitle: 'React Router Complete Course in One Video',
-      date: '25 Sep, 2024',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b0ca?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 4,
-      studentName: 'Richard Sanford',
-      courseTitle: 'Build Full Stack E-Commerce App in React JS',
-      date: '15 Oct, 2024',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 5,
-      studentName: 'Enrique Murphy',
-      courseTitle: 'Build AI BG Removal SaaS App in React JS',
-      date: '22 Aug, 2024',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 6,
-      studentName: 'Alison Powell',
-      courseTitle: 'React Router Complete Course in One Video',
-      date: '25 Sep, 2024',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b0ca?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 7,
-      studentName: 'Richard Sanford',
-      courseTitle: 'Build Full Stack E-Commerce App in React JS',
-      date: '15 Oct, 2024',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 8,
-      studentName: 'Sarah Johnson',
-      courseTitle: 'Advanced JavaScript Concepts',
-      date: '10 Nov, 2024',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 9,
-      studentName: 'Michael Chen',
-      courseTitle: 'Python for Data Science',
-      date: '15 Nov, 2024',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face'
-    },
-    {
-      id: 10,
-      studentName: 'Emily Rodriguez',
-      courseTitle: 'Web Design Fundamentals',
-      date: '20 Nov, 2024',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b0ca?w=40&h=40&fit=crop&crop=face'
-    }
-  ];
+  // Fetch dashboard data from API
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      const token = await getToken();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/educator/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include"
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDashboardStats([
+          {
+            id: 1,
+            title: 'Total Enrollments',
+            value: data.dashboardData.enrolledStudentsData.length,
+            icon: User,
+            bgColor: 'bg-blue-50',
+            iconColor: 'text-blue-600',
+            borderColor: 'border-blue-200'
+          },
+          {
+            id: 2,
+            title: 'Total Courses',
+            value: data.dashboardData.totalcourses,
+            icon: BookOpenCheck,
+            bgColor: 'bg-purple-50',
+            iconColor: 'text-purple-600',
+            borderColor: 'border-purple-200'
+          },
+          {
+            id: 3,
+            title: 'Total Earnings',
+            value: `$${data.dashboardData.totalEarnings}`,
+            icon: DollarSign,
+            bgColor: 'bg-green-50',
+            iconColor: 'text-green-600',
+            borderColor: 'border-green-200'
+          }
+        ]);
+        setLatestEnrollments(
+          (data.dashboardData.enrolledStudentsData || []).slice(-10).reverse().map((enrollment, idx) => ({
+            id: idx + 1,
+            studentName: enrollment.student.name,
+            courseTitle: enrollment.courseTitle,
+            date: enrollment.student.createdAt
+              ? new Date(enrollment.student.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+              : "",
+            avatar: enrollment.student.imageUrl || "https://ui-avatars.com/api/?name=" + encodeURIComponent(enrollment.student.name)
+          }))
+        );
+      }
+    };
+    if (activeTab === "dashboard") fetchDashboard();
+  }, [activeTab, getToken]);
 
   const handleToggleChapter = (chapterId) => {
     setChapterVisibility(prev => ({
@@ -327,6 +296,19 @@ const Dashboard = () => {
           : ch
       )
     );
+  };
+
+  const handleThumbnailUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      // Preview image
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setNewCourse((prev) => ({ ...prev, thumbnail: ev.target.result }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Lecture Dialog Component
@@ -465,7 +447,7 @@ const Dashboard = () => {
                 <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                 <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
                 <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Course Title</th>
-                <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                {/* <th>Date</th> <-- Remove this line */}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -485,7 +467,7 @@ const Dashboard = () => {
                   <td className="py-4 px-4 md:px-6 text-sm text-gray-600">
                     <div className="max-w-xs truncate">{enrollment.courseTitle}</div>
                   </td>
-                  <td className="py-4 px-4 md:px-6 text-sm text-gray-500">{enrollment.date}</td>
+                  {/* <td>{enrollment.date}</td> <-- Remove this line */}
                 </tr>
               ))}
             </tbody>
@@ -562,16 +544,34 @@ const Dashboard = () => {
           <div className="mb-8">
             <label className="block text-sm font-medium text-gray-700 mb-2">Course Thumbnail</label>
             <div className="flex items-center space-x-4">
-              <input 
-                type="url" 
+              <input
+                type="url"
                 value={newCourse.thumbnail}
                 onChange={(e) => setNewCourse({...newCourse, thumbnail: e.target.value})}
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter image URL"
+                placeholder="Enter image URL or upload"
               />
-              <button className="bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition duration-200 flex items-center">
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                id="thumbnail-upload"
+                onChange={handleThumbnailUpload}
+              />
+              <button
+                type="button"
+                className="bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition duration-200 flex items-center"
+                onClick={() => document.getElementById("thumbnail-upload").click()}
+              >
                 📁
               </button>
+              {newCourse.thumbnail && (
+                <img
+                  src={newCourse.thumbnail}
+                  alt="Thumbnail Preview"
+                  className="w-16 h-12 rounded object-cover border ml-2"
+                />
+              )}
             </div>
           </div>
 
@@ -579,15 +579,15 @@ const Dashboard = () => {
           <div className="mb-8">
             <label className="block text-sm font-medium text-gray-700 mb-4">Course Chapters</label>
             {chapters.map((chapter, chapterIndex) => (
-              <div key={chapter.id} className="mb-6 bg-gray-50 rounded-lg p-4 border">
+              <div key={chapter.chapterId} className="mb-6 bg-gray-50 rounded-lg p-4 border">
                 <div className="flex items-center justify-between mb-3">
                   {/* Dropdown Icon (left) */}
                   <button
-                    onClick={() => handleToggleChapter(chapter.id)}
+                    onClick={() => handleToggleChapter(chapter.chapterId)}
                     className="text-gray-400 hover:text-blue-600 mr-2"
-                    title={chapterVisibility[chapter.id] ? "Hide Lectures" : "Show Lectures"}
+                    title={chapterVisibility[chapter.chapterId] ? "Hide Lectures" : "Show Lectures"}
                   >
-                    {chapterVisibility[chapter.id] ? (
+                    {chapterVisibility[chapter.chapterId] ? (
                       <ChevronUp className="w-5 h-5" />
                     ) : (
                       <ChevronDown className="w-5 h-5" />
@@ -595,14 +595,14 @@ const Dashboard = () => {
                   </button>
                   <h4 className="font-medium text-gray-800 flex items-center flex-1">
                     <BookOpen className="w-4 h-4 mr-2" />
-                    {chapter.name}
+                    {chapter.chapterTitle}
                   </h4>
                   <span className="text-sm text-gray-500 mr-2">
-                    {chapter.lectures.length} lecture{chapter.lectures.length !== 1 ? 's' : ''}
+                    {chapter.chapterContent.length} lecture{chapter.chapterContent.length !== 1 ? 's' : ''}
                   </span>
                   {/* Remove Chapter Icon (right) */}
                   <button
-                    onClick={() => handleRemoveChapter(chapter.id)}
+                    onClick={() => handleRemoveChapter(chapter.chapterId)}
                     className="text-gray-400 hover:text-red-500"
                     title="Remove Chapter"
                   >
@@ -611,18 +611,18 @@ const Dashboard = () => {
                 </div>
 
                 {/* Lectures List */}
-                {chapterVisibility[chapter.id] && chapter.lectures.length > 0 && (
+                {chapterVisibility[chapter.chapterId] && chapter.chapterContent.length > 0 && (
                   <div className="mb-3 space-y-2">
-                    {chapter.lectures.map((lecture, lectureIndex) => (
-                      <div key={lecture.id} className="bg-white rounded p-3 flex items-center justify-between">
+                    {chapter.chapterContent.map((lecture, lectureIndex) => (
+                      <div key={lecture.lectureId} className="bg-white rounded p-3 flex items-center justify-between">
                         <div className="flex items-center flex-1">
                           <Play className="w-4 h-4 text-blue-600 mr-2" />
                           <div>
-                            <p className="text-sm font-medium text-gray-800">{lecture.title}</p>
+                            <p className="text-sm font-medium text-gray-800">{lecture.lectureTitle}</p>
                             <div className="flex items-center text-xs text-gray-500 mt-1">
                               <Clock className="w-3 h-3 mr-1" />
-                              {lecture.duration} min
-                              {lecture.isFree && (
+                              {lecture.lectureDuration} min
+                              {lecture.isPreviewFree && (
                                 <>
                                   <span className="mx-2">•</span>
                                   <Eye className="w-3 h-3 mr-1" />
@@ -634,7 +634,7 @@ const Dashboard = () => {
                         </div>
                         {/* Remove Lecture Icon (right) */}
                         <button
-                          onClick={() => handleRemoveLecture(chapter.id, lecture.id)}
+                          onClick={() => handleRemoveLecture(chapter.chapterId, lecture.lectureId)}
                           className="text-gray-400 hover:text-red-500 ml-2"
                           title="Remove Lecture"
                         >
@@ -646,7 +646,7 @@ const Dashboard = () => {
                 )}
 
                 {/* Add Lecture Button */}
-                {chapterVisibility[chapter.id] && (
+                {chapterVisibility[chapter.chapterId] && (
                   <button
                     onClick={() => handleAddLecture(chapterIndex)}
                     className="w-full bg-blue-50 text-blue-600 border border-blue-200 rounded-md py-2 hover:bg-blue-100 transition duration-200 flex items-center justify-center space-x-2"
@@ -680,7 +680,6 @@ const Dashboard = () => {
               Cancel
             </button>
           </div>
-
         </div>
       </div>
 
@@ -689,18 +688,46 @@ const Dashboard = () => {
     </div>
   );
 
+  // Fetch educator courses from API
+  useEffect(() => {
+    const fetchCourses = async () => {
+      const token = await getToken();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/educator/courses`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include"
+      });
+      const data = await res.json();
+      if (data.success) setCourses(data.courses);
+    };
+    if (activeTab === "my-courses") fetchCourses();
+  }, [activeTab, getToken]);
+
+  // Fetch enrolled students from API
+  useEffect(() => {
+    const fetchStudents = async () => {
+      const token = await getToken();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/educator/enrolled-students`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include"
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Latest enrolled students first
+        setStudents(data.enrolledStudentsData.reverse());
+      }
+    };
+    if (activeTab === "students") fetchStudents();
+  }, [activeTab, getToken]);
+
   const MyCoursesContent = () => (
     <div className="p-4 md:p-8 bg-gray-50 min-h-full">
       <div className="mb-6 md:mb-8">
         <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">My Courses</h1>
       </div>
-
-      {/* Courses Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 md:p-6 border-b border-gray-200 bg-gray-50">
           <h2 className="text-lg font-semibold text-gray-800">All Courses</h2>
         </div>
-        
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -713,31 +740,31 @@ const Dashboard = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {courses.map((course) => (
-                <tr key={course.id} className="hover:bg-gray-50 transition-colors duration-150">
+                <tr key={course._id || course.id} className="hover:bg-gray-50 transition-colors duration-150">
                   <td className="py-4 px-4 md:px-6">
                     <div className="flex items-center">
                       <div className="w-12 h-10 md:w-16 md:h-12 rounded-lg overflow-hidden mr-3 md:mr-4 flex-shrink-0">
                         <img
-                          src={course.thumbnail}
-                          alt={course.title}
+                          src={course.courseThumbnail}
+                          alt={course.courseTitle}
                           className="w-full h-full object-cover"
                         />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-medium text-gray-900 leading-5 truncate">
-                          {course.title}
+                          {course.courseTitle}
                         </h3>
                       </div>
                     </div>
                   </td>
                   <td className="py-4 px-4 md:px-6 text-sm text-gray-600">
-                    ${course.earnings}
+                    ${course.totalEarnings || 0}
                   </td>
                   <td className="py-4 px-4 md:px-6 text-sm text-gray-600">
-                    {course.students}
+                    {course.enrolledStudents ? course.enrolledStudents.length : 0}
                   </td>
                   <td className="py-4 px-4 md:px-6 text-sm text-gray-500">
-                    {course.publishedDate}
+                    {course.createdAt ? new Date(course.createdAt).toLocaleDateString() : ""}
                   </td>
                 </tr>
               ))}
@@ -758,31 +785,29 @@ const Dashboard = () => {
               <tr>
                 <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                 <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
                 <th className="text-left py-3 px-4 md:px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Enrollment Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {Array.from({length: 15}, (_, i) => i + 1).map((student) => (
-                <tr key={student} className="hover:bg-gray-50 transition-colors duration-150">
-                  <td className="py-4 px-4 md:px-6 text-sm text-gray-500">{student}</td>
+              {students.map((studentObj, idx) => (
+                <tr key={studentObj.student._id + studentObj.courseTitle + idx} className="hover:bg-gray-50 transition-colors duration-150">
+                  <td className="py-4 px-4 md:px-6 text-sm text-gray-500">{idx + 1}</td>
                   <td className="py-4 px-4 md:px-6">
                     <div className="flex items-center">
                       <img
                         className="w-8 h-8 rounded-full object-cover mr-3 flex-shrink-0"
-                        src={`https://images.unsplash.com/photo-150300321116${student}-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face`}
-                        alt={`Student ${student}`}
+                        src={studentObj.student.imageUrl || "https://ui-avatars.com/api/?name=" + encodeURIComponent(studentObj.student.name)}
+                        alt={studentObj.student.name}
                       />
-                      <span className="text-sm font-medium text-gray-800 truncate">Student {student}</span>
+                      <span className="text-sm font-medium text-gray-800 truncate">{studentObj.student.name}</span>
                     </div>
                   </td>
-                  <td className="py-4 px-4 md:px-6 text-sm text-gray-600">
-                    <div className="truncate">student{student}@example.com</div>
-                  </td>
-                  <td className="py-4 px-4 md:px-6 text-sm text-gray-600">React Course</td>
+                  <td className="py-4 px-4 md:px-6 text-sm text-gray-600 truncate">{studentObj.courseTitle}</td>
                   <td className="py-4 px-4 md:px-6 text-sm text-gray-500">
-                    {new Date(2025, 0, student).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}
+                    {studentObj.purchaseDate
+                      ? new Date(studentObj.purchaseDate).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+                      : ""}
                   </td>
                 </tr>
               ))}

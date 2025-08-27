@@ -1,6 +1,6 @@
 // app/courseList/[slug]/page.js
 "use client";
-import { courses, getStars } from "@/lib/coursesData";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   FaStar,
@@ -11,14 +11,18 @@ import {
   FaEye,
   FaTimes
 } from "react-icons/fa";
-import { useState, use } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
+import { useUser, useAuth } from "@clerk/nextjs";
 
 function slugify(text) {
-  return text.toLowerCase().trim().replace(/\s+/g, "-");
+  return text ? text.toLowerCase().trim().replace(/\s+/g, "-") : "";
 }
 
 function parseDuration(duration) {
   if (!duration) return 0;
+  // If duration is number (from backend), just return it
+  if (typeof duration === "number") return duration;
   const lower = duration.toLowerCase();
   let minutes = 0;
   if (lower.includes("h")) {
@@ -41,45 +45,61 @@ function formatMinutes(totalMinutes) {
   return `${m}m`;
 }
 
-export default function CourseDetailPage(props) {
-  const { slug } = use(props.params); // 👈 params ko unwrap karo
-
-  const course = courses.find((c) => slugify(c.title) === slug);
-
-  if (!course) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-red-500 text-lg">
-        Course not found
-      </div>
-    );
-  }
-
-  const sections = [
-    {
-      title: "Project Introduction",
-      lectures: [
-        ["App Overview - Build Text-to-Image SaaS", "10 mins", true], // true = has preview
-        ["Tech Stack - React.js, MongoDB, Node.js", "15 mins", false],
-        ["Core Features - Authentication, payment, deployment", "25 mins", false],
-      ],
-    },
-    {
-      title: "Project Setup and Configuration",
-      lectures: [
-        ["Environment Setup - Install Node.js, VS Code", "10 mins", true],
-        ["Repository Setup - Setup github repository", "10 mins", false],
-        ["Install Dependencies - Set up npm packages", "10 mins", false],
-        ["Initial Configuration - Set up basic files and folders", "15 mins", false],
-      ],
-    },
-  ];
-
+export default function CourseDetailPage({ params }) {
+  const { slug } = React.use(params); // Unwrap params
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [openSections, setOpenSections] = useState([0]);
   const [showPreview, setShowPreview] = useState(false);
   const [previewVideo, setPreviewVideo] = useState("");
-  
-  // Check if user is already enrolled (you can get this from your auth context or API)
-  const [isEnrolled, setIsEnrolled] = useState(false); // This should come from your user data
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const router = useRouter();
+  const { user } = useUser();
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    // Step 1: Get all courses, find course by slug, get its _id
+    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/course/all`)
+      .then((res) => res.json())
+      .then((data) => {
+        const found = (data.courses || []).find(
+          (c) => slugify(c.courseTitle) === slug
+        );
+        if (found && found._id) {
+          // Step 2: Get course detail by ID
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/course/${found._id}`)
+            .then((res) => res.json())
+            .then((detail) => {
+              setCourse(detail.courseData || null);
+              setLoading(false);
+            })
+            .catch(() => setLoading(false));
+        } else {
+          setCourse(null);
+          setLoading(false);
+        }
+      })
+      .catch(() => setLoading(false));
+  }, [slug]);
+
+  useEffect(() => {
+    const checkEnrollment = async () => {
+      if (!user || !user.id || !course?._id) return;
+      const token = await getToken();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/enrolled-courses`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      });
+      const data = await res.json();
+      const enrolled = (data.enrolledCourses || []).some(
+        (c) => c._id === course._id
+      );
+      setIsEnrolled(enrolled);
+    };
+    checkEnrollment();
+  }, [user, course, getToken]);
 
   const toggleSection = (idx) => {
     if (openSections.includes(idx)) {
@@ -89,30 +109,8 @@ export default function CourseDetailPage(props) {
     }
   };
 
-  const handlePreview = (lectureTitle) => {
-    // Different preview videos based on lecture content
-    let videoUrl = "";
-    
-    if (lectureTitle.includes("App Overview") || lectureTitle.includes("Text-to-Image")) {
-      videoUrl = "https://www.youtube.com/embed/VoKFyB1q4fc"; // Text to Image SaaS
-    } else if (lectureTitle.includes("Environment Setup") || lectureTitle.includes("Node.js")) {
-      videoUrl = "https://www.youtube.com/embed/fBNz5xF-Kx4"; // Node.js Setup
-    } else if (lectureTitle.includes("React") || lectureTitle.includes("Frontend")) {
-      videoUrl = "https://www.youtube.com/embed/bMknfKXIFA8"; // React Tutorial
-    } else if (lectureTitle.includes("MongoDB") || lectureTitle.includes("Database")) {
-      videoUrl = "https://www.youtube.com/embed/-56x56UppqQ"; // MongoDB Tutorial
-    } else if (lectureTitle.includes("Authentication") || lectureTitle.includes("Login")) {
-      videoUrl = "https://www.youtube.com/embed/rltfdjcXjmk"; // Authentication Tutorial
-    } else if (lectureTitle.includes("Payment") || lectureTitle.includes("Stripe")) {
-      videoUrl = "https://www.youtube.com/embed/1r-F3FIONl8"; // Stripe Payment
-    } else if (lectureTitle.includes("Deployment") || lectureTitle.includes("Deploy")) {
-      videoUrl = "https://www.youtube.com/embed/l134cBAJCuc"; // Deployment Tutorial
-    } else {
-      // Default fallback video
-      videoUrl = "https://www.youtube.com/embed/VoKFyB1q4fc";
-    }
-    
-    setPreviewVideo(videoUrl);
+  const handlePreview = (lectureUrl) => {
+    setPreviewVideo(lectureUrl);
     setShowPreview(true);
   };
 
@@ -121,25 +119,106 @@ export default function CourseDetailPage(props) {
     setPreviewVideo("");
   };
 
-  const handleEnroll = () => {
-    if (!isEnrolled) {
-      // Handle enrollment logic here
-      setIsEnrolled(true);
-      alert("Successfully enrolled!");
+  const handleEnroll = async () => {
+    if (!user || !user.id) {
+      toast.error("Login to enroll");
+      return;
+    }
+    if (isEnrolled) {
+      toast.info("Already enrolled");
+      return;
+    }
+    try {
+      const token = await getToken();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/purchase`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ courseId: course._id }),
+      });
+      const data = await res.json();
+      if (data.success && data.session_url) {
+        // Redirect to Stripe checkout
+        window.location.href = data.session_url;
+      } else {
+        toast.error(data.message || "Enrollment failed");
+      }
+    } catch (err) {
+      toast.error("Something went wrong!");
     }
   };
+
+  // Rating stars logic
+  const getStars = (rating) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      if (rating >= i) stars.push("full");
+      else if (rating > i - 1) stars.push("half");
+      else stars.push("empty");
+    }
+    return stars;
+  };
+
+  function getEmbedUrl(url) {
+    if (!url) return "";
+    // YouTube normal link to embed link
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+    if (ytMatch) {
+      return `https://www.youtube.com/embed/${ytMatch[1]}`;
+    }
+    return url; // For other video links, return as is
+  }
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (!course) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-500 text-lg">
+        Course not found
+      </div>
+    );
+  }
+
+  // Calculate average rating from courseRatings array
+  const ratingsArr = course.courseRatings || [];
+  const averageRating =
+    ratingsArr.length > 0
+      ? (
+          ratingsArr.reduce((acc, r) => acc + (r.rating || 0), 0) /
+          ratingsArr.length
+        ).toFixed(1)
+      : 0;
+
+  // Course sections/chapters from backend
+  const sections = course.courseContent || [];
+
+  // Total lectures and duration
+  const totalLectures = sections.reduce(
+    (acc, sec) => acc + (sec.chapterContent?.length || 0),
+    0
+  );
+  const totalMinutes = sections.reduce(
+    (acc, sec) =>
+      acc +
+      (sec.chapterContent || []).reduce(
+        (lecAcc, lec) => lecAcc + parseDuration(lec.lectureDuration),
+        0
+      ),
+    0
+  );
 
   return (
     <section className="bg-[linear-gradient(to_bottom,_#e0f2fe_0%,_#f0f9ff_35%,_white_100%)] min-h-screen py-10 px-6">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
         {/* RIGHT SIDEBAR */}
         <div className="order-1 lg:order-2">
           {/* Video Preview or Course Image */}
           {showPreview ? (
             <div className="relative w-full h-56 rounded-lg overflow-hidden bg-black">
               <iframe
-                src={previewVideo}
+                src={getEmbedUrl(previewVideo)}
                 title="Course Preview"
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -155,31 +234,35 @@ export default function CourseDetailPage(props) {
             </div>
           ) : (
             <div className="relative w-full h-56 rounded-lg overflow-hidden">
-              <Image src={course.image} alt={course.title} fill className="object-cover" />
+              <Image src={course.courseThumbnail} alt={course.courseTitle} fill className="object-cover" />
             </div>
           )}
 
           <p className="text-sm text-red-500 mt-4">5 days left at this price!</p>
 
           <div className="mt-1 flex items-center space-x-3">
-            <span className="text-2xl font-bold text-indigo-600">${course.price}</span>
-            <span className="line-through text-gray-400">$19.99</span>
-            <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded-full">50% off</span>
+            <span className="text-2xl font-bold text-indigo-600">${course.coursePrice}</span>
+            {course.discount && (
+              <>
+                <span className="line-through text-gray-400">${(course.coursePrice / (1 - course.discount / 100)).toFixed(2)}</span>
+                <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded-full">{course.discount}% off</span>
+              </>
+            )}
           </div>
 
           <div className="flex items-center mt-3 text-sm text-gray-600 space-x-4">
             <div className="flex items-center text-yellow-400">
-              {getStars(course.rating).map((type, i) => (
+              {getStars(averageRating).map((type, i) => (
                 <span key={i} className="text-xs">
                   {type === "full" && <FaStar />}
                   {type === "half" && <FaStarHalfAlt />}
                   {type === "empty" && <FaRegStar />}
                 </span>
               ))}
-              <span className="ml-1 text-gray-500">{course.rating}</span>
+              <span className="ml-1 text-gray-500">{averageRating}</span>
             </div>
-            <span>{course.totalDuration || "7h 25m"}</span>
-            <span>{course.totalLectures || "54 lectures"}</span>
+            <span>{formatMinutes(totalMinutes)}</span>
+            <span>{totalLectures} lectures</span>
           </div>
 
           <button 
@@ -211,17 +294,26 @@ export default function CourseDetailPage(props) {
           <div className="text-sm text-gray-600 mb-6">
             <a href="/" className="text-indigo-600 font-semibold">Home</a> /{" "}
             <a href="/courseList" className="text-indigo-600 font-semibold">Course List</a> /{" "}
-            <span className="font-semibold">{course.title}</span>
+            <span className="font-semibold">{course.courseTitle}</span>
           </div>
 
-          <h1 className="text-3xl font-bold text-gray-800">{course.title}</h1>
-          <p className="text-gray-600 mt-2">{course.subtitle}</p>
+          <h1 className="text-3xl font-bold text-gray-800">{course.courseTitle}</h1>
+          <p className="text-gray-600 mt-2">
+            {course.courseDescription
+              ? course.courseDescription.split(" ").slice(0, 8).join(" ") + "..."
+              : ""}
+          </p>
           <p className="text-sm text-gray-500 mt-1">
-            Course by <span className="text-indigo-600">{course.instructor}</span>
+            Course by{" "}
+            <span className="text-indigo-600">
+              {typeof course.educator === "object"
+                ? course.educator.name
+                : course.educator || "Educator"}
+            </span>
           </p>
 
           <div className="flex items-center space-x-1 mt-3 text-yellow-400 text-sm">
-            {getStars(course.rating).map((type, i) => (
+            {getStars(averageRating).map((type, i) => (
               <span key={i}>
                 {type === "full" && <FaStar />}
                 {type === "half" && <FaStarHalfAlt />}
@@ -229,7 +321,7 @@ export default function CourseDetailPage(props) {
               </span>
             ))}
             <span className="text-xs text-gray-500 ml-1">
-              ({course.reviews} ratings) 21 students
+              {averageRating} ({ratingsArr.length} ratings)
             </span>
           </div>
 
@@ -237,22 +329,13 @@ export default function CourseDetailPage(props) {
           <div className="mt-8">
             <h2 className="text-xl font-semibold mb-1">Course Structure</h2>
             <p className="text-sm text-gray-500 mb-4">
-              {sections.length} sections •{" "}
-              {sections.reduce((acc, sec) => acc + sec.lectures.length, 0)} lectures •{" "}
-              {formatMinutes(
-                sections.reduce(
-                  (acc, sec) =>
-                    acc +
-                    sec.lectures.reduce((lecAcc, lec) => lecAcc + parseDuration(lec[1]), 0),
-                  0
-                )
-              )} total duration
+              {sections.length} sections • {totalLectures} lectures • {formatMinutes(totalMinutes)} total duration
             </p>
 
             <div className="border rounded-lg overflow-hidden">
               {sections.map((section, idx) => {
-                const totalSectionMinutes = section.lectures.reduce(
-                  (acc, lec) => acc + parseDuration(lec[1]),
+                const totalSectionMinutes = (section.chapterContent || []).reduce(
+                  (acc, lec) => acc + parseDuration(lec.lectureDuration),
                   0
                 );
                 const isOpen = openSections.includes(idx);
@@ -269,18 +352,18 @@ export default function CourseDetailPage(props) {
                             isOpen ? "rotate-180" : ""
                           }`}
                         />
-                        <span>{section.title}</span>
+                        <span>{section.chapterTitle}</span>
                       </div>
 
                       {/* RIGHT SIDE → Lectures + Time */}
                       <span className="text-sm text-gray-500">
-                        {section.lectures.length} lectures • {formatMinutes(totalSectionMinutes)}
+                        {(section.chapterContent || []).length} lectures • {formatMinutes(totalSectionMinutes)}
                       </span>
                     </button>
 
                     {isOpen && (
                       <div className="bg-white">
-                        {section.lectures.map(([title, time, hasPreview], lecIdx) => (
+                        {(section.chapterContent || []).map((lec, lecIdx) => (
                           <div
                             key={lecIdx}
                             className="flex items-center px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors"
@@ -289,14 +372,14 @@ export default function CourseDetailPage(props) {
                               <FaPlay className="text-gray-600 text-xs ml-0.5" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="text-gray-800 text-sm">{title}</span>
+                              <span className="text-gray-800 text-sm">{lec.lectureTitle}</span>
                             </div>
                             <div className="flex items-center space-x-2">
-                              {hasPreview && (
+                              {lec.isPreviewFree && lec.lectureUrl && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handlePreview(title);
+                                    handlePreview(lec.lectureUrl);
                                   }}
                                   className="flex items-center space-x-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors"
                                 >
@@ -304,7 +387,11 @@ export default function CourseDetailPage(props) {
                                   <span>Preview</span>
                                 </button>
                               )}
-                              <span className="text-sm text-gray-500">{time}</span>
+                              <span className="text-sm text-gray-500">
+                                {typeof lec.lectureDuration === "number"
+                                  ? formatMinutes(lec.lectureDuration)
+                                  : lec.lectureDuration}
+                              </span>
                             </div>
                           </div>
                         ))}
@@ -320,16 +407,7 @@ export default function CourseDetailPage(props) {
           <div className="mt-12">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Course Description</h2>
             <div className="text-gray-700 leading-relaxed">
-              <p className="mb-3">
-                {course.description || 
-                "Master the MERN Stack by building a complete AI-powered Text to Image SaaS application. This comprehensive course covers React.js, Node.js, MongoDB, Express.js, and integrates cutting-edge AI technology for image generation."}
-              </p>
-              <p className="mb-3">
-                {"Learn to implement user authentication, payment processing with Stripe, and deploy your application to production. Perfect for developers who want to build modern SaaS applications with AI integration."}
-              </p>
-              <p>
-                {"By the end of this course, you'll have a fully functional SaaS platform that you can use as a portfolio project or launch as your own business."}
-              </p>
+              <p className="mb-3">{course.courseDescription}</p>
             </div>
           </div>
         </div>

@@ -1,14 +1,29 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { courses } from "@/lib/coursesData";
+import { useEffect, useState } from "react";
+import { FaStar, FaStarHalfAlt, FaRegStar } from "react-icons/fa";
 
-// Slug banane ka helper
 function slugify(text) {
-  return text.toLowerCase().trim().replace(/\s+/g, "-");
+  return text ? text.toLowerCase().trim().replace(/\s+/g, "-") : "";
 }
 
 export default function TopCourses() {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/course/all`)
+      .then((res) => res.json())
+      .then((data) => {
+        setCourses(data.courses || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div>Loading...</div>;
+
   return (
     <section className="bg-white py-16 px-6">
       <div className="max-w-7xl mx-auto">
@@ -23,59 +38,73 @@ export default function TopCourses() {
 
         {/* Course Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
-          {courses.slice(0, 4).map((course) => (
-            <Link
-              key={course.title}
-              
-              href={`/courseList/${slugify(course.title)}`} // Detail page link
-              className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition block"
-            >
-              {/* Thumbnail */}
-              <div className="relative w-full h-44">
-                <Image
-                  src={course.image}
-                  alt={course.title}
-                  fill
-                  className="object-cover"
-                />
-              </div>
+          {courses.slice(0, 4).map((course) => {
+            // Calculate rating from courseRatings array if averageRating missing
+            let rating = 0;
+            if (typeof course.averageRating === "number") {
+              rating = course.averageRating;
+            } else if (typeof course.rating === "number") {
+              rating = course.rating;
+            } else if (Array.isArray(course.courseRatings) && course.courseRatings.length > 0) {
+              rating =
+                course.courseRatings.reduce((sum, r) => sum + (r.rating || 0), 0) /
+                course.courseRatings.length;
+            }
 
-              {/* Content */}
-              <div className="p-4">
-                <h3 className="font-semibold text-base text-gray-800 leading-tight">
-                  {course.title}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">{course.subtitle}</p>
-                <p className="text-xs text-gray-500 mt-2">{course.instructor}</p>
+            return (
+              <Link
+                key={course._id}
+                href={`/courseList/${slugify(course.courseTitle)}`}
+                className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition block"
+              >
+                {/* Thumbnail */}
+                <div className="relative w-full h-44">
+                  <Image
+                    src={course.courseThumbnail}
+                    alt={course.courseTitle}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
 
-                {/* Rating */}
-                <div className="flex items-center space-x-1 mt-2">
-                  {[...Array(5)].map((_, i) => (
-                    <span
-                      key={i}
-                      className={`text-sm ${
-                        i < Math.floor(course.rating)
-                          ? "text-yellow-400"
-                          : "text-gray-300"
-                      }`}
-                    >
-                      ★
+                {/* Content */}
+                <div className="p-4">
+                  <h3 className="font-semibold text-base text-gray-800 leading-tight">
+                    {course.courseTitle}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {course.courseDescription
+                      ? course.courseDescription.split(" ").slice(0, 6).join(" ") + "..."
+                      : ""}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">{course.educator?.name || "Educator"}</p>
+                  
+                  {/* Rating */}
+                  <div className="flex items-center mt-2">
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      if (rating >= i + 1) {
+                        return <FaStar key={i} className="text-yellow-400" />;
+                      } else if (rating > i && rating < i + 1) {
+                        return <FaStarHalfAlt key={i} className="text-yellow-400" />;
+                      } else {
+                        return <FaRegStar key={i} className="text-yellow-400" />;
+                      }
+                    })}
+                    <span className="ml-2 text-xs text-gray-500">
+                      {rating > 0 ? rating.toFixed(1) : "No rating"}
                     </span>
-                  ))}
-                  <span className="text-xs text-gray-500">
-                    ({course.reviews})
-                  </span>
-                </div>
+                  </div>
 
-                {/* Price */}
-                <div className="flex justify-between items-center mt-3">
-                  <span className="text-lg font-bold text-gray-800">
-                    ${course.price}
-                  </span>
+                  {/* Price */}
+                  <div className="flex justify-between items-center mt-3">
+                    <span className="text-lg font-bold text-gray-800">
+                      ${course.coursePrice}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Show All Button */}
@@ -84,7 +113,7 @@ export default function TopCourses() {
             href="/courseList"
             className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-full text-sm font-semibold hover:bg-indigo-700 transition"
           >
-              Show all courses
+            Show all courses
           </Link>
         </div>
       </div>

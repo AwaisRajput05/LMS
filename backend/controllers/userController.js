@@ -143,7 +143,7 @@ export const addUserRating = async (req, res) => {
     }
 
     try {
-        const course = await course.findById(courseId);
+        const course = await Course.findById(courseId);
 
         if (!course) {
             return res.json({ success: false, message: "Course not found" });
