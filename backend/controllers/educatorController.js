@@ -1,5 +1,6 @@
 import { clerkClient } from "@clerk/express";
 import Course from "../models/course.js";
+import { v2 as cloudinary } from "cloudinary"; // filepath: e:\LMS\backend\controllers\educatorController.js
 import { Purchase }  from "../models/purchase.js";
 import User from "../models/user.js"; // <-- Add this line
 
