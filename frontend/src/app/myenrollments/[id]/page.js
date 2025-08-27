@@ -182,6 +182,16 @@ export default function CourseStructure() {
     setSubmitting(false);
   };
 
+  function getEmbedUrl(url) {
+    if (!url) return "";
+    // YouTube normal link to embed link
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+    if (ytMatch) {
+      return `https://www.youtube.com/embed/${ytMatch[1]}`;
+    }
+    return url; // For other video links, return as is
+  }
+
   if (!courseData) {
     return (
       <main className="bg-white min-h-screen px-6 py-12 flex items-center justify-center">
@@ -198,9 +208,10 @@ export default function CourseStructure() {
           {showVideo ? (
             <div className="relative w-full h-80 rounded-lg overflow-hidden bg-black">
               <iframe
-                src={selectedVideo}
+                src={getEmbedUrl(selectedVideo)}
                 title="Lecture Video"
                 frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 className="w-full h-full"
               ></iframe>

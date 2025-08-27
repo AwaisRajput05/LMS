@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Home, Plus, BookOpen, Users, User, BookOpenCheck, DollarSign, X, Play, Clock, Link, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from "@clerk/nextjs";
+import { toast } from 'react-toastify';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -30,6 +31,7 @@ const Dashboard = () => {
   const [students, setStudents] = useState([]);
   const [dashboardStats, setDashboardStats] = useState([]);
   const [latestEnrollments, setLatestEnrollments] = useState([]);
+  const [addingCourse, setAddingCourse] = useState(false);
 
   // Mock courses data - later replace with API calls
   const myCourses = [
@@ -177,49 +179,54 @@ const Dashboard = () => {
 
   // Add course API integration
   const handleAddCourse = async () => {
-    if (!newCourse.title.trim()) {
-      alert('Please enter course title');
-      return;
-    }
-    const token = await getToken();
+    setAddingCourse(true); // Loader start
+    try {
+      if (!newCourse.title.trim()) {
+        alert('Please enter course title');
+        return;
+      }
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append("courseData", JSON.stringify({
+        courseTitle: newCourse.title,
+        courseDescription: newCourse.description,
+        coursePrice: newCourse.price,
+        discount: newCourse.discount,
+        courseThumbnail: newCourse.thumbnail,
+        courseContent: chapters
+      }));
+      if (imageFile) {
+        formData.append("image", imageFile);
+      }
 
-    const formData = new FormData();
-    formData.append("courseData", JSON.stringify({
-      courseTitle: newCourse.title,
-      courseDescription: newCourse.description,
-      coursePrice: newCourse.price,
-      discount: newCourse.discount,
-      courseThumbnail: newCourse.thumbnail,
-      courseContent: chapters
-    }));
-    if (imageFile) {
-      formData.append("image", imageFile);
-    }
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/educator/add-course`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      credentials: "include",
-      body: formData
-    });
-    const data = await res.json();
-    if (data.success) {
-      alert('Course added successfully!');
-      setActiveTab('my-courses');
-      setNewCourse({
-        title: '',
-        description: '',
-        price: '',
-        discount: '',
-        thumbnail: ''
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/educator/add-course`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        credentials: "include",
+        body: formData
       });
-      setImageFile(null);
-      setChapters([]);
-    } else {
-      alert(data.message || "Failed to add course");
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Course added successfully!");
+        setActiveTab('my-courses');
+        setNewCourse({
+          title: '',
+          description: '',
+          price: '',
+          discount: '',
+          thumbnail: ''
+        });
+        setImageFile(null);
+        setChapters([]);
+      } else {
+        toast.error(data.message || "Failed to add course");
+      }
+    } catch (err) {
+      toast.error("Something went wrong!");
     }
+    setAddingCourse(false); // Loader end
   };
 
   // Fetch dashboard data from API
@@ -672,9 +679,20 @@ const Dashboard = () => {
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
             <button 
               onClick={handleAddCourse}
-              className="bg-black text-white px-8 py-3 rounded-md hover:bg-gray-800 transition duration-200 font-medium"
+              disabled={addingCourse}
+              className={`bg-black text-white px-8 py-3 rounded-md hover:bg-gray-800 transition duration-200 font-medium flex items-center justify-center`}
             >
-              ADD COURSE
+              {addingCourse ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Adding...
+                </span>
+              ) : (
+                "ADD COURSE"
+              )}
             </button>
             <button className="border border-gray-300 text-gray-700 px-8 py-3 rounded-md hover:bg-gray-50 transition duration-200 font-medium">
               Cancel
