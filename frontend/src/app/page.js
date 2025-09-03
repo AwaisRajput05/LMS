@@ -10,7 +10,7 @@ import AOS from 'aos';
 import 'aos/dist/aos.css'; // You can also use <link> for styles
 import Footer from '../../components/student/footer'
 import { useAuth, useUser } from "@clerk/nextjs";
-//import { ToastContainer } from "react-toastify";
+
 
 function page() {
   const { getToken } = useAuth();
@@ -37,7 +37,7 @@ function page() {
 
   return (
     <div>
-      {/* <ToastContainer position="top-right" autoClose={3000} /> */}
+  
       <hr />
       <Hero />
       <TrustedBy />
