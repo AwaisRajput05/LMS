@@ -17,7 +17,10 @@ await connectDB();
 await connectcloudinary();
 
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: ["http://localhost:3000",
+    "https://lms-frontend-ten-lime.vercel.app",
+  ],
+  
   credentials: true,
 }));
 app.use(clerkMiddleware());
