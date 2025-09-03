@@ -46,7 +46,7 @@ function formatMinutes(totalMinutes) {
 }
 
 export default function CourseDetailPage({ params }) {
-  const { slug } = React.use(params); // Unwrap params
+  const { slug } = params;
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [openSections, setOpenSections] = useState([0]);
