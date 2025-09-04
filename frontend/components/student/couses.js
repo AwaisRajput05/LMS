@@ -38,7 +38,7 @@ export default function TopCourses() {
 
         {/* Course Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
-          {courses.slice(0, 4).map((course) => {
+          {courses.slice(0, 4).map((course, idx) => {
             // Calculate rating from courseRatings array if averageRating missing
             let rating = 0;
             if (typeof course.averageRating === "number") {
@@ -56,6 +56,8 @@ export default function TopCourses() {
                 key={course._id}
                 href={`/courseList/${slugify(course.courseTitle)}`}
                 className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition block"
+                data-aos="fade-right"
+                data-aos-delay={1000 * (idx + 1)} // 1s, 2s, 3s, 4s
               >
                 {/* Thumbnail */}
                 <div className="relative w-full h-44">
